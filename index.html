@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASURA ULTIMATE AI - Live Auth</title>
+    <script src="https://www.gstatic.com/firebasejs/9.10.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.10.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.10.0/firebase-storage-compat.js"></script>
+    
+    <style>
+        :root { --primary-purple: #bc9aff; --bg-light: #f4f7ff; --card-white: #ffffff; --text-dark: #333; }
+        body { background-color: var(--bg-light); font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .asura-card { background: var(--card-white); width: 350px; border-radius: 30px; padding: 30px 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); text-align: center; border: 1px solid rgba(0,0,0,0.02); }
+        .scanner-header { position: relative; width: 170px; height: 170px; margin: 0 auto 15px; border-radius: 20px; border: 3px solid var(--primary-purple); overflow: hidden; background: #000; box-shadow: 0 0 20px rgba(188, 154, 255, 0.3); }
+        #video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+        .scan-line { position: absolute; top: 0; left: 0; width: 100%; height: 3px; background: var(--primary-purple); box-shadow: 0 0 15px var(--primary-purple); animation: moveScan 2.5s infinite ease-in-out; z-index: 10; }
+        @keyframes moveScan { 0% { top: 0%; } 50% { top: 100%; } 100% { top: 0%; } }
+        .title { color: var(--primary-purple); font-size: 1.5rem; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; margin: 10px 0; }
+        .divider { width: 90%; height: 1px; background: #eee; margin: 15px auto; }
+        .crown-svg { width: 35px; height: 35px; fill: var(--primary-purple); opacity: 0.7; }
+        .grid-container { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 15px; }
+        .grid-item { border: 1px solid #f0f0f0; border-radius: 15px; padding: 12px; cursor: pointer; transition: 0.3s; }
+        .grid-item:hover { border-color: var(--primary-purple); background: #fafafa; }
+        .input-group { margin-bottom: 12px; width: 100%; }
+        .input-group input { width: 100%; box-sizing: border-box; padding: 12px; border-radius: 12px; border: 1px solid #eee; outline: none; font-weight: bold; text-align: center; }
+        .id-bar { background: #f9f9f9; border: 1px solid #eee; padding: 10px 15px; border-radius: 12px; font-size: 0.75rem; color: #555; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; }
+        .copy-btn { background: var(--primary-purple); color: white; border: none; padding: 5px 12px; border-radius: 8px; font-size: 0.65rem; font-weight: bold; cursor: pointer; }
+        .btn-main { background: var(--primary-purple); color: white; border: none; width: 100%; padding: 16px; border-radius: 15px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; box-shadow: 0 5px 15px rgba(188, 154, 255, 0.4); text-transform: uppercase; }
+        .btn-main:disabled { background: #ccc; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+
+    <div class="asura-card">
+        <div class="scanner-header">
+            <div class="scan-line"></div>
+            <video id="video" autoplay muted playsinline></video>
+            <canvas id="canvas" style="display:none;"></canvas>
+        </div>
+
+        <div class="title">Asura Ultimate AI</div>
+        <div class="divider"></div>
+        <svg class="crown-svg" viewBox="0 0 24 24"><path d="M5 16L3 5L8.5 10L12 4L15.5 10L21 5L19 16H5M19 19C19 19.6 18.6 20 18 20H6C5.4 20 5 19.6 5 19V18H19V19Z"/></svg>
+
+        <div class="grid-container">
+            <div class="grid-item" onclick="setMode('register')">
+                <span>Register</span>
+                <p>New Identity</p>
+            </div>
+            <div class="grid-item" onclick="setMode('login')">
+                <span>Login</span>
+                <p>Verify Face</p>
+            </div>
+        </div>
+
+        <div class="input-group">
+            <input type="text" id="userName" placeholder="Enter Your Name">
+        </div>
+
+        <div class="id-bar">
+            <span>ID: <strong id="devId">LOADING...</strong></span>
+            <button class="copy-btn" id="copyBtn" onclick="copyID()">Copy</button>
+        </div>
+
+        <button class="btn-main" id="mainBtn" onclick="handleAuth()">
+            <span id="btnText">Verify & Login</span>
+        </button>
+    </div>
+
+    <script>
+        // --- Firebase Initialization ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyBTTVVmV2J4A8QqG9gaTFjhTzDW6RqgNps",
+            authDomain: "madara-62f7b.firebaseapp.com",
+            databaseURL: "https://madara-62f7b-default-rtdb.firebaseio.com",
+            projectId: "madara-62f7b",
+            storageBucket: "madara-62f7b.firebasestorage.app",
+            messagingSenderId: "282972851212",
+            appId: "1:282972851212:web:64980ccdfa06b317357229"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const storage = firebase.storage();
+
+        let currentMode = 'login';
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+
+        // Start Camera
+        async function initCamera() {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            video.srcObject = stream;
+        }
+
+        function setMode(mode) {
+            currentMode = mode;
+            document.getElementById('btnText').innerText = (mode === 'register') ? "Register Face" : "Verify & Login";
+        }
+
+        // Generate Device ID
+        function generateID() {
+            const id = "ASURA-" + Math.random().toString(36).substr(2, 9).toUpperCase();
+            document.getElementById('devId').innerText = id;
+        }
+
+        function copyID() {
+            navigator.clipboard.writeText(document.getElementById('devId').innerText);
+            document.getElementById('copyBtn').innerText = "Copied!";
+            setTimeout(() => document.getElementById('copyBtn').innerText = "Copy", 2000);
+        }
+
+        // --- Auth Logic (Step 3 & 5) ---
+        async function handleAuth() {
+            const name = document.getElementById('userName').value;
+            const deviceId = document.getElementById('devId').innerText;
+            const mainBtn = document.getElementById('mainBtn');
+
+            if (!name) return alert("Please enter your name!");
+            
+            mainBtn.disabled = true;
+            document.getElementById('btnText').innerText = "Processing...";
+
+            // Capture Frame
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            const imageData = canvas.toDataURL('image/jpeg');
+
+            if (currentMode === 'register') {
+                // Upload to Storage
+                const storageRef = storage.ref(`faces/${deviceId}.jpg`);
+                await storageRef.putString(imageData, 'data_url');
+                const faceURL = await storageRef.getDownloadURL();
+
+                // Save to Firestore (Status: Pending)
+                await db.collection("users").doc(deviceId).set({
+                    name: name,
+                    faceURL: faceURL,
+                    deviceId: deviceId,
+                    status: "pending",
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                alert("Registration Successful! Wait for Admin Approval.");
+            } else {
+                // Login Logic (Step 5)
+                const doc = await db.collection("users").doc(deviceId).get();
+                if (!doc.exists) {
+                    alert("User not found! Register first.");
+                } else if (doc.data().status !== "approved") {
+                    alert("Your account is still PENDING approval.");
+                } else {
+                    alert("Login Success! Welcome " + doc.data().name);
+                }
+            }
+            
+            mainBtn.disabled = false;
+            setMode(currentMode);
+        }
+
+        window.onload = () => { initCamera(); generateID(); };
+    </script>
+</body>
+</html>
